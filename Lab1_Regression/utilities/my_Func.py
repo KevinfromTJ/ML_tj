@@ -113,3 +113,37 @@ def linear_relu_backward(dY, cache):
     dtmp = relu_backward(dY, relu_cache)
     dX, dW, db = linear_backward(dtmp, linear_cache)
     return dX, dW, db
+
+
+
+def adam(w, dw, config=None):
+    """
+    Adam 算法
+
+    """
+    if config is None:
+        config = {}
+    config.setdefault("learning_rate", 1e-3)
+    config.setdefault("beta1", 0.9)
+    config.setdefault("beta2", 0.999)
+    config.setdefault("epsilon", 1e-8)
+    config.setdefault("m", np.zeros_like(w))
+    config.setdefault("v", np.zeros_like(w))
+    config.setdefault("t", 0)
+
+    
+    
+    m,v,t=config['m'],config['v'],config['t']
+    lr,beta1,beta2,eps=config['learning_rate'],config['beta1'],config['beta2'],config['epsilon']
+
+    # print(lr)
+
+    config['t'] = t = t + 1                             
+    config['m'] = m = beta1 * m + (1 - beta1) * dw      
+    mt = m / (1 - beta1**t)                             
+    config['v'] = v = beta2 * v + (1 - beta2) * (dw**2) 
+    vt = v / (1 - beta2**t)                             
+    next_w = w - lr * mt / (np.sqrt(vt) + eps)          
+    
+
+    return next_w, config

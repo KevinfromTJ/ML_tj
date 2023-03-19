@@ -132,12 +132,13 @@ class MyRidgeRegression(object):
 
         Returns:
         """
-        XTX = X.T * X
-        denom = XTX + np.eye(np.shape(X)[1]) * self.lam
-        if np.linalg.det(denom) == 0.0:
-            print("奇异矩阵，无逆矩阵！！！")
-            return
-        Theta = denom.I * (X.T * y)
+        X = np.hstack([np.ones((X.shape[0],1)), X]) #  [b(theta0),X]
+        N,D = X.shape
+        dn_lam=D/N*self.lam
+        XTX = np.matmul(X.T , X)
+        XTX_I_inv = np.linalg.inv(XTX/D+dn_lam/D*np.eye(D))
+
+        Theta = np.matmul(XTX_I_inv,np.matmul(X.T,y)).reshape(-1)/N
         self.b = Theta[0]
         self.W = Theta[1:]
 
@@ -145,7 +146,9 @@ class MyRidgeRegression(object):
             self,
             X,
             y,
-            learning_rate=1e-3,
+            mode='',
+            config=None,
+            # learning_rate=1e-3,
             iterations=100,
             batch_size=200,
             verbose=False,
@@ -185,10 +188,24 @@ class MyRidgeRegression(object):
             # print(grad['dW'].shape[0])
 
             cost += np.sum(self.W**2)*self.lam
+            N=grad['dW'].shape[0]
 
-            self.W -= learning_rate * grad['dW'] + self.lam * learning_rate / grad['dW'].shape[0]*self.W
-            self.b -= learning_rate * grad['db'] + self.lam * learning_rate / grad['dW'].shape[0]*self.b
-            # cost +=
+            grad['dW']=grad['dW']+self.lam/N*self.W
+            grad['db']=grad['db']+self.lam/N*self.b
+
+
+            Theta =np.hstack([self.b,self.W])
+            dTheta =np.hstack([grad['db'],grad['dW']])
+
+            Theta,config=adam(Theta,dTheta,config)
+                
+            self.b = Theta[0]
+            self.W = Theta[1:]
+
+                
+            # self.W -= learning_rate * grad['dW'] + self.lam * learning_rate / grad['dW'].shape[0]*self.W
+            # self.b -= learning_rate * grad['db'] + self.lam * learning_rate / grad['dW'].shape[0]*self.b
+            # # cost +=
             if verbose and it % 2000 == 0:
                 print("iteration %d / %d: loss %f" % (it, iterations, cost))
 
