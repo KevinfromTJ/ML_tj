@@ -15,6 +15,7 @@ from utilities.my_metrics import mse_test,rmse_test
 from utilities.my_polyFeatures import getPolyFeatures_np,getPolyFeatures_pd
 from Regressors.my_regressionModels import MyLinearRegression,MyMLPRegression,MyRidgeRegression,MyLassoRegression
 from data_preprocess import *
+from utilities.my_visualize import draw_sns
 
 # data_root="D:\TJCS\ML&DL\datasets\\boston"
 # train_file="boston.csv"
@@ -27,11 +28,26 @@ test_file="test.csv"
 PRD_LABEL="SalePrice" # 预测标签
 
 df_train = pd.read_csv(data_root+"\\"+train_file) if train_file else None
+
+# draw_sns(df_train,0.25)
+# exit()
+
 df_test =  pd.read_csv(data_root+"\\"+test_file) if test_file else None
 # print(df_train)
 # print(df_test)
 
 df_all = pd.concat([df_train, df_test]).reset_index(drop=True)  # 因为要给所有数据编码
+
+feats_cat = df_all.select_dtypes(include = ["object"]).columns
+feats_num = df_all.select_dtypes(exclude = ["object"]).columns
+feats_num=feats_num.drop(PRD_LABEL)
+feats_num=feats_num.drop('Id')
+
+
+print("数值特征有 : " + str(len(feats_num)))
+print("离散特征有 : " + str(len(feats_cat )))
+# exit()
+
 # print(df_all)
 # feats=list(df_all.columns)
 # feats.remove(PRD_LABEL)
@@ -76,11 +92,11 @@ print(df_train_enc.shape)
 df_test_enc = df_all[df_all[PRD_LABEL].isna()].reset_index(drop=True)
 
 # print(df_train_enc)
-X_train_val=df_train_enc
-y_train_val=df_train_enc[PRD_LABEL]
+X_train_test=df_train_enc
+y_train_test=df_train_enc[PRD_LABEL]
 
-print(X_train_val.shape)
-print(y_train_val.shape)
+print(X_train_test.shape)
+print(y_train_test.shape)
 
 # print(np.power(X,2))
 
@@ -94,40 +110,40 @@ corr.sort_values(["SalePrice"], ascending = False, inplace = True)
 
 
 corr_sp=corr.SalePrice[corr.SalePrice.notnull()]
-corr_sp=corr_sp[ abs(corr_sp)>0.6 ]
+corr_sp=corr_sp[ abs(corr_sp)>0.5 ]
 # print(corr_sp)
 
 
 
-X_train_val=X_train_val[pd.DataFrame(corr_sp).index.drop(PRD_LABEL)]
-print(X_train_val.shape)
+X_train_test=X_train_test[pd.DataFrame(corr_sp).index.drop(PRD_LABEL)]
+print(X_train_test.shape)
 # exit()
 
-y_train_val=np.log1p(y_train_val)
+y_train_test=np.log1p(y_train_test)
 '''处理好的特征选取'''
 
 # exit()
-feats_cat = X_train_val.select_dtypes(include = ["object"]).columns
-feats_num = X_train_val.select_dtypes(exclude = ["object"]).columns
+feats_cat = X_train_test.select_dtypes(include = ["object"]).columns
+feats_num = X_train_test.select_dtypes(exclude = ["object"]).columns
 
-X_train,X_val,y_train,y_val = train_test_split(X_train_val,y_train_val,test_size = 0.3,random_state= 0)
+X_train,X_test,y_train,y_test = train_test_split(X_train_test,y_train_test,test_size = 0.3,random_state= 0)
 
 
 scaler=StandardScaler().fit(X_train.loc[:,feats_num])
 X_train.loc[:,feats_num]=scaler.transform(X_train.loc[:,feats_num])
-X_val.loc[:,feats_num]=scaler.transform(X_val.loc[:,feats_num])
+X_test.loc[:,feats_num]=scaler.transform(X_test.loc[:,feats_num])
 
 
-print ( X_train.isnull().values.any())
-print ( X_val.isnull().values.any())
-print ( y_train.isnull().values.any())
-print ( y_val.isnull().values.any())
+# print ( X_train.isnull().values.any())
+# print ( X_test.isnull().values.any())
+# print ( y_train.isnull().values.any())
+# print ( y_test.isnull().values.any())
 
-y_ori=y_val
+y_ori=y_test
 
-answer_file="test_full.csv"
-df_answer =  pd.read_csv(data_root+"\\"+answer_file)
-y_test_ori=np.log1p(df_answer['SalePrice'])
+# answer_file="test_full.csv"
+# df_answer =  pd.read_csv(data_root+"\\"+answer_file)
+# y_test_ori=np.log1p(df_answer['SalePrice'])
 # df_test_enc=df_test_enc.drop(PRD_LABEL)
 
 '''
@@ -140,22 +156,22 @@ optim_mode='adam'
 
 '''mlp回归'''
 if 1:
-    dim_input=X_train.shape[1]
+    dim_input=X_train.shape[1]                  # 参数设定
     # layer_dims=[200,150,100,50]
     layer_dims=[100,100,50,20]
     mlp_cfg={}
-    mlp_cfg['learning_rate']=0.001
+    mlp_cfg['learning_rate']=0.01
     # mlp_cfg["beta1"]=0.9 # 0.9
     mlp_cfg["beta2"]=0.99 # 0.99
     # mlp_cfg["epsilon"]=1e-7 
-    my_mlpregressor=MyMLPRegression(
+    my_mlpregressor=MyMLPRegression(            # 初始化回归模型
         layer_dims=layer_dims,
         dim_input=dim_input,
         dropout_keep_ratio=1.0,
-        weight_scale=0.005,
+        weight_scale=0.1,
         )
 
-    my_mlpregressor.train(
+    my_mlpregressor.train(                       # 训练
         X_train,
         y_train,
         mode=optim_mode,
@@ -166,9 +182,9 @@ if 1:
         output_inv=10000//10,
         )
 
-    # df_test_enc
+    my_mlpr_pred=my_mlpregressor.predict(X_test) # 测试
 
-    my_mlpr_pred=my_mlpregressor.predict(X_val)
+
     print(my_mlpr_pred.shape)
     print("my_mlpr R2=",r2_score(y_ori,my_mlpr_pred ))#模型评价, 决定系数
     print(rmse_test(my_mlpr_pred.squeeze(),y_ori))
@@ -188,7 +204,7 @@ if 1:
         verbose=True,
         output_inv=10000//10,
     )
-    my_lasso_pred=my_lasso_re.predict(X_val)
+    my_lasso_pred=my_lasso_re.predict(X_test)
     print("my_lasso R2=",r2_score(y_ori,my_lasso_pred))#模型评价, 决定系数
     print(rmse_test(my_lasso_pred,y_ori))
 
@@ -199,7 +215,7 @@ if 1:
     lasso.fit(X_train, y_train)
     alpha = lasso.alpha_
     print("Best alpha :", alpha)
-    lasso_pred=lasso.predict(X_val)
+    lasso_pred=lasso.predict(X_test)
     print("lasso R2=",r2_score(y_ori,lasso_pred))#模型评价, 决定系数
     print(rmse_test(lasso_pred,y_ori))
 
@@ -219,7 +235,7 @@ if 1:
         output_inv=10000//10
     )
     # my_ridge_re.fit(X_train,y_train)
-    my_ridge_pred=my_ridge_re.predict(X_val)
+    my_ridge_pred=my_ridge_re.predict(X_test)
     print("my_ridge R2=",r2_score(y_ori,my_ridge_pred))#模型评价, 决定系数
     print(rmse_test(my_ridge_pred,y_ori))
     # exit()
@@ -230,7 +246,7 @@ if 1:
 if 1:
     lr=LinearRegression()
     lr.fit(X_train,y_train)
-    lr_pre=lr.predict(X_val)
+    lr_pre=lr.predict(X_test)
     print("lr R2=",r2_score(y_ori,lr_pre ))#模型评价, 决定系数
     print(rmse_test(lr_pre,y_ori))
 
@@ -248,7 +264,7 @@ if 1:
         verbose=True,
         output_inv=20000//10
         )
-    my_lr_pre = my_lr.predict(X_val)
+    my_lr_pre = my_lr.predict(X_test)
     print("mylr R2=",r2_score(y_ori,my_lr_pre ))#模型评价, 决定系数
     print(rmse_test(my_lr_pre,y_ori))
 

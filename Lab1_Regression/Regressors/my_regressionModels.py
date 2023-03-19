@@ -122,16 +122,6 @@ class MyLinearRegression(object):
         
         return y_pred
 
-    # def get_cost_grad(self, X_batch, y_batch, reg):
-    #     """
-    #     TODO: 可以用子类覆写
-
-        
-    #     """
-    #     cost,grad=lr_cost_grad_ori(X_batch,y_batch,self.W,self.b)
-    #     return cost,grad
-
-    #     pass
 
 
 
