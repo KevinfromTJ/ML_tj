@@ -1,5 +1,6 @@
 import numpy as np
 
+'''代价与梯度'''
 def lr_cost_grad_ori(X, y, W, b): 
     """
     多元线性回归的代价和梯度
@@ -70,6 +71,55 @@ def mlp_last_cost_grad_ori(y_pred, y_true):
     return cost,dy
 
 
+'''神经网络各层'''
+def dropout_forward(x, mode,p_valid):
+    """
+
+    Inputs:
+    - x: (N,D)
+    - mode: 训练("train")或测试("test"——不用drop)
+    - p_valid:某神经元有效的概率（即有效的比例）
+
+    Returns:
+    - y: (N,D)
+    - cache: 
+    """
+
+
+    mask,y = None, None
+
+    if mode == "train":
+        # 注意rand要求传入不定参数的各维度，所以对于shape返回的元组需要加*解掉
+        mask=np.random.rand(*x.shape)<p_valid # 小于的被丢弃
+        '''注意除p，毕竟只有p/1的神经元激活了'''
+        y =x *mask/ p_valid
+
+    elif mode == "test":
+        y =x # 测试时全部神经元就全部用上了 
+
+    cache=(p_valid,mask)
+    return y, cache
+
+def dropout_backward(dy, cache):
+    """
+
+    Inputs:
+    - dy: Upstream derivatives, of any shape
+    - cache: 
+        - p_valid
+        - mask
+    Returns:
+    - dx
+
+    """
+
+    p_valid,mask=cache
+
+    dx=dy/p_valid
+    dx[mask<p_valid]=0 # 不激活的神经元没有梯度，激活的梯度就是上一层反向的
+
+    return dx
+
 
 def linear_forward(X,W,b):
     Y=X.dot(W)+b
@@ -115,7 +165,7 @@ def linear_relu_backward(dY, cache):
     return dX, dW, db
 
 
-
+'''学习算法'''
 def adam(w, dw, config=None):
     """
     Adam 算法

@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn import ensemble, tree, linear_model
+from sklearn.ensemble import RandomForestRegressor 
+from sklearn.linear_model import  RidgeCV, LassoCV, ElasticNetCV,LinearRegression
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.utils import shuffle
@@ -36,7 +37,9 @@ df_all = pd.concat([df_train, df_test]).reset_index(drop=True)  # 因为要给�
 # feats.remove(PRD_LABEL)
 
 '''数据预处理'''
+df_all=clean_data(df_all)
 df_all=handle_missing(df_all)
+
 df_all=handle_num2cat(df_all)
 df_all=handle_cat2num(df_all)
 
@@ -63,6 +66,8 @@ df_all= pd.concat((df_num, df_cat,df_all[PRD_LABEL]), axis = 1)# 经过自定义
 # print(df_all.columns.has_duplicates)
 # print(df_all[PRD_LABEL].notna())
 
+
+'''分离预测和测试'''
 df_train_enc =df_all[df_all[PRD_LABEL].notna()].reset_index(drop=True)
 print(df_train_enc.shape)
 
@@ -72,7 +77,7 @@ df_test_enc = df_all[df_all[PRD_LABEL].isna()].reset_index(drop=True)
 
 # print(df_train_enc)
 X_train_val=df_train_enc
-y_train_val=df_train[PRD_LABEL]
+y_train_val=df_train_enc[PRD_LABEL]
 
 print(X_train_val.shape)
 print(y_train_val.shape)
@@ -89,7 +94,7 @@ corr.sort_values(["SalePrice"], ascending = False, inplace = True)
 
 
 corr_sp=corr.SalePrice[corr.SalePrice.notnull()]
-corr_sp=corr_sp[ abs(corr_sp)>0.5 ]
+corr_sp=corr_sp[ abs(corr_sp)>0.6 ]
 # print(corr_sp)
 
 
@@ -120,101 +125,135 @@ print ( y_val.isnull().values.any())
 
 y_ori=y_val
 
+answer_file="test_full.csv"
+df_answer =  pd.read_csv(data_root+"\\"+answer_file)
+y_test_ori=np.log1p(df_answer['SalePrice'])
+# df_test_enc=df_test_enc.drop(PRD_LABEL)
+
+'''
+下边就是具体的算法训练了
+'''
+
+optim_mode='adam'
+# optim_mode='sgd'
+
+
 '''mlp回归'''
-dim_input=X_train.shape[1]
-layer_dims=[50,100,150,100]
-mlp_cfg={}
-mlp_cfg['learning_rate']=0.002
-# mlp_cfg["beta1"]=0.9 # 0.9
-# mlp_cfg["beta2"]=0.999 # 0.99
-# mlp_cfg["epsilon"]=1e-8 
-my_mlpregressor=MyMLPRegression(
-    layer_dims=layer_dims,
-    dim_input=dim_input,
-    weight_scale=0.01,
-    )
+if 1:
+    dim_input=X_train.shape[1]
+    # layer_dims=[200,150,100,50]
+    layer_dims=[100,100,50,20]
+    mlp_cfg={}
+    mlp_cfg['learning_rate']=0.001
+    # mlp_cfg["beta1"]=0.9 # 0.9
+    mlp_cfg["beta2"]=0.99 # 0.99
+    # mlp_cfg["epsilon"]=1e-7 
+    my_mlpregressor=MyMLPRegression(
+        layer_dims=layer_dims,
+        dim_input=dim_input,
+        dropout_keep_ratio=1.0,
+        weight_scale=0.005,
+        )
 
-my_mlpregressor.train(
-    X_train,
-    y_train,
-    batch_size=128,
+    my_mlpregressor.train(
+        X_train,
+        y_train,
+        mode=optim_mode,
+        batch_size=128,
+        config=mlp_cfg,
+        iterations=10000,
+        verbose=True,
+        output_inv=10000//10,
+        )
 
-    config=mlp_cfg,
-    iterations=5000,
-    verbose=True
-    )
+    # df_test_enc
 
-my_mlpr_pred=my_mlpregressor.predict(X_val)
-print(my_mlpr_pred.shape)
-print("my_mlpr R2=",r2_score(y_ori,my_mlpr_pred ))#模型评价, 决定系数
-print(rmse_test(my_mlpr_pred.squeeze(),y_ori))
-exit()
+    my_mlpr_pred=my_mlpregressor.predict(X_val)
+    print(my_mlpr_pred.shape)
+    print("my_mlpr R2=",r2_score(y_ori,my_mlpr_pred ))#模型评价, 决定系数
+    print(rmse_test(my_mlpr_pred.squeeze(),y_ori))
+# exit()
 '''lasso回归'''
-lasso_cfg={}
-lasso_cfg['learning_rate']=0.05
-my_lasso_re=MyLassoRegression(lam=0.003)
-my_lasso_re.train(
-    X_train,
-    y_train,
-    batch_size=128,
-    config=lasso_cfg,
-    # learning_rate=0.0005,
-    iterations=50000,
-    verbose=True
-)
-my_lasso_pred=my_lasso_re.predict(X_val)
-print("my_lasso R2=",r2_score(y_ori,my_lasso_pred))#模型评价, 决定系数
-print(rmse_test(my_lasso_pred,y_ori))
+if 1:
+    lasso_cfg={}
+    lasso_cfg['learning_rate']=0.005
+    my_lasso_re=MyLassoRegression(lam=0.001)
+    my_lasso_re.train(
+        X_train,
+        y_train,
+        mode=optim_mode,
+        batch_size=128,
+        config=lasso_cfg,
+        iterations=10000,
+        verbose=True,
+        output_inv=10000//10,
+    )
+    my_lasso_pred=my_lasso_re.predict(X_val)
+    print("my_lasso R2=",r2_score(y_ori,my_lasso_pred))#模型评价, 决定系数
+    print(rmse_test(my_lasso_pred,y_ori))
 
-from sklearn.linear_model import  RidgeCV, LassoCV, ElasticNetCV
-lasso = LassoCV(alphas = [0.0001, 0.0003, 0.0006, 0.001, 0.003, 0.006, 0.01, 0.03, 0.06, 0.1, 
-                          0.3, 0.6, 1], 
-                max_iter = 50000, cv = 10)
-lasso.fit(X_train, y_train)
-alpha = lasso.alpha_
-print("Best alpha :", alpha)
-lasso_pred=lasso.predict(X_val)
-print("lasso R2=",r2_score(y_ori,lasso_pred))#模型评价, 决定系数
-print(rmse_test(lasso_pred,y_ori))
+
+    lasso = LassoCV(alphas = [0.0001, 0.0003, 0.0006, 0.001, 0.003, 0.006, 0.01, 0.03, 0.06, 0.1, 
+                            0.3, 0.6, 1], 
+                    max_iter = 50000, cv = 10)
+    lasso.fit(X_train, y_train)
+    alpha = lasso.alpha_
+    print("Best alpha :", alpha)
+    lasso_pred=lasso.predict(X_val)
+    print("lasso R2=",r2_score(y_ori,lasso_pred))#模型评价, 决定系数
+    print(rmse_test(lasso_pred,y_ori))
 
 '''ridge回归'''
-ridge_cfg={}
-ridge_cfg['learning_rate']=0.05
-my_ridge_re=MyRidgeRegression(lam=0.003)
-my_ridge_re.train(
-    X_train,
-    y_train,
-    batch_size=128,
-    # learning_rate=0.01,
-    config=ridge_cfg,
-    iterations=50000,
-    verbose=True
-)
-# my_ridge_re.fit(X_train,y_train)
-my_ridge_pred=my_ridge_re.predict(X_val)
-print("my_ridge R2=",r2_score(y_ori,my_ridge_pred))#模型评价, 决定系数
-print(rmse_test(my_ridge_pred,y_ori))
-# exit()
+if 1:
+    ridge_cfg={}
+    ridge_cfg['learning_rate']=0.005
+    my_ridge_re=MyRidgeRegression(lam=0.03)
+    my_ridge_re.train(
+        X_train,
+        y_train,
+        mode=optim_mode,
+        batch_size=128,
+        config=ridge_cfg,
+        iterations=10000,
+        verbose=True,
+        output_inv=10000//10
+    )
+    # my_ridge_re.fit(X_train,y_train)
+    my_ridge_pred=my_ridge_re.predict(X_val)
+    print("my_ridge R2=",r2_score(y_ori,my_ridge_pred))#模型评价, 决定系数
+    print(rmse_test(my_ridge_pred,y_ori))
+    # exit()
 
 
 
 '''线性回归（对比库函数）'''
-lr=linear_model.LinearRegression()
-lr.fit(X_train,y_train)
-lr_pre=lr.predict(X_val)
+if 1:
+    lr=LinearRegression()
+    lr.fit(X_train,y_train)
+    lr_pre=lr.predict(X_val)
+    print("lr R2=",r2_score(y_ori,lr_pre ))#模型评价, 决定系数
+    print(rmse_test(lr_pre,y_ori))
 
-# my_lr=MyLinearRegression()
-# # my_lr.fit(X_train,y_train)
-# my_lr.train(X_train,y_train
-#             ,learning_rate=0.002,iterations=20000,batch_size=X_train.shape[0]//10,verbose=True)
-# my_lr_pre = my_lr.predict(X_val)
+    my_lr=MyLinearRegression()
+    lr_cfg={}
+    lr_cfg['learning_rate']=0.005
+    # my_lr.fit(X_train,y_train)
+    my_lr.train(
+        X_train,
+        y_train,
+        mode=optim_mode,
+        config=lr_cfg,
+        iterations=20000,
+        batch_size=X_train.shape[0]//10,
+        verbose=True,
+        output_inv=20000//10
+        )
+    my_lr_pre = my_lr.predict(X_val)
+    print("mylr R2=",r2_score(y_ori,my_lr_pre ))#模型评价, 决定系数
+    print(rmse_test(my_lr_pre,y_ori))
 
-# y_ori=y_val
 
 
-print("lr R2=",r2_score(y_ori,lr_pre ))#模型评价, 决定系数
-print(rmse_test(lr_pre,y_ori))
 
-# print("mylr R2=",r2_score(y_ori,my_lr_pre ))#模型评价, 决定系数
-# print(rmse_test(my_lr_pre,y_ori))
+
 
