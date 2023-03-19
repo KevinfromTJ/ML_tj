@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 
 from Lab1_Regression.utilities.my_Func import *
@@ -80,7 +81,7 @@ class MyLinearRegression(object):
 
 
             if verbose and it % 100 == 0:
-                print("iteration %d / %d: loss %f" % (it, iterations, cost))
+                print("iteration %d / %d: cost %f" % (it, iterations, cost))
 
         
 
@@ -146,11 +147,12 @@ class MyRidgeRegression(object):
             self,
             X,
             y,
-            mode='',
+            mode='adam',
             config=None,
             # learning_rate=1e-3,
             iterations=100,
             batch_size=200,
+            weight_scale=1,
             verbose=False,
     ):
         """
@@ -166,15 +168,18 @@ class MyRidgeRegression(object):
         data_num, feature_dim = X.shape
 
         if self.W is None:
-            self.W = 100 * np.random.randn(feature_dim)
+            self.W = weight_scale * np.random.randn(feature_dim)
         if self.b is None:
-            self.b = 100 * np.random.randn(1)
+            self.b = weight_scale * np.random.randn(1)
 
         X = np.array(X)
         y = np.array(y)
 
         # sgd 优化
 
+
+        res_best={}
+        res_best['cost']=float("inf") 
         for it in range(iterations):
 
             train_indices = np.random.choice(range(data_num), batch_size, replace=True)
@@ -186,28 +191,38 @@ class MyRidgeRegression(object):
 
             cost, grad = lr_cost_grad_ori(X_batch, y_batch, self.W, self.b)
             # print(grad['dW'].shape[0])
-
-            cost += np.sum(self.W**2)*self.lam
             N=grad['dW'].shape[0]
 
+            cost += np.sum(self.W**2)*self.lam
             grad['dW']=grad['dW']+self.lam/N*self.W
             grad['db']=grad['db']+self.lam/N*self.b
+            if cost<res_best['cost']:
+                res_best['iter']=it
+                res_best['cost']=cost
+                res_best['W']=self.W
+                res_best['b']=self.b
+
+            if mode=='adam':
+                Theta =np.hstack([self.b,self.W])
+                dTheta =np.hstack([grad['db'],grad['dW']])
+
+                Theta,config=adam(Theta,dTheta,config)
+                    
+                self.b = Theta[0]
+                self.W = Theta[1:]
+            elif mode =='sgd':
+                self.W -= config['learning_rate'] * grad['dW'] 
+                self.b -= config['learning_rate'] * grad['db'] 
 
 
-            Theta =np.hstack([self.b,self.W])
-            dTheta =np.hstack([grad['db'],grad['dW']])
-
-            Theta,config=adam(Theta,dTheta,config)
                 
-            self.b = Theta[0]
-            self.W = Theta[1:]
+            
+            if verbose and it % 1000 == 0:
+                print("iteration %d / %d: cost %f" % (it, iterations, cost))
 
-                
-            # self.W -= learning_rate * grad['dW'] + self.lam * learning_rate / grad['dW'].shape[0]*self.W
-            # self.b -= learning_rate * grad['db'] + self.lam * learning_rate / grad['dW'].shape[0]*self.b
-            # # cost +=
-            if verbose and it % 2000 == 0:
-                print("iteration %d / %d: loss %f" % (it, iterations, cost))
+        self.W=res_best['W']
+        self.b=res_best['b']
+        print("best cost %f, in iteration %d" % (res_best['cost'],res_best['iter']))
 
     def predict(self, X):
         """
@@ -237,10 +252,14 @@ class MyLassoRegression(object):
             self,
             X,
             y,
-            learning_rate=1e-3,
+            mode='adam',
+            config=None,
+            # learning_rate=1e-3,
             iterations=100,
             batch_size=200,
+            weight_scale=1,
             verbose=False,
+            
     ):
         """
         训练的方式更新参数
@@ -255,15 +274,17 @@ class MyLassoRegression(object):
         data_num, feature_dim = X.shape
 
         if self.W is None:
-            self.W = 100 * np.random.randn(feature_dim)
+            self.W = weight_scale * np.random.randn(feature_dim)
         if self.b is None:
-            self.b = 100 * np.random.randn(1)
+            self.b = weight_scale * np.random.randn(1)
 
         X = np.array(X)
         y = np.array(y)
 
         # sgd 优化
 
+        res_best={}
+        res_best['cost']=float("inf") 
         for it in range(iterations):
 
             train_indices = np.random.choice(range(data_num), batch_size, replace=True)
@@ -274,19 +295,49 @@ class MyLassoRegression(object):
             # print('X_batch.shape: ',X_batch.shape,' ','y_batch.shape: ',y_batch.shape)
 
             cost, grad = lr_cost_grad_ori(X_batch, y_batch, self.W, self.b)
+            
             # print(grad['dW'].shape[0])
 
-            cost += np.sum(abs(self.W))*self.lam
-
-
             RW = self.W/abs(self.W)
+            cost += np.sum(abs(self.W))*self.lam    # 在线性回归基础上改
+            grad['dW']=grad['dW']+self.lam*RW       # 在线性回归基础上改
+            # grad['db']=grad['db']
+            if cost<res_best['cost']:
+                res_best['iter']=it
+                res_best['cost']=cost
+                res_best['W']=self.W
+                res_best['b']=self.b
+
+            
 
 
-            self.W -= learning_rate * grad['dW'] + self.lam * learning_rate * RW
-            self.b -= learning_rate * grad['db']
+            if mode=='adam':
+                # print(self.b.shape,' ',self.W.shape)
+                # exit()
+                Theta =np.hstack([self.b,self.W])
+                dTheta =np.hstack([grad['db'],grad['dW']])
 
-            if verbose and it % 2000 == 0:
-                print("iteration %d / %d: loss %f" % (it, iterations, cost))
+                Theta,config=adam(Theta,dTheta,config)
+                    
+                self.b = Theta[0]
+                self.W = Theta[1:]
+            elif mode =='sgd':
+                self.W -= config['learning_rate'] * grad['dW'] 
+                self.b -= config['learning_rate'] * grad['db'] 
+
+
+            
+
+
+            # self.W -= learning_rate * grad['dW'] + self.lam * learning_rate * RW
+            # self.b -= learning_rate * grad['db']
+
+            if verbose and it % 1000 == 0:
+                print("iteration %d / %d: cost %f" % (it, iterations, cost))
+
+        self.W=res_best['W']
+        self.b=res_best['b']
+        print("best cost %f, in iteration %d" % (res_best['cost'],res_best['iter']))
 
     def predict(self, X):
         """
@@ -327,7 +378,7 @@ class MyMLPRegression(object):
         dropout_keep_ratio=1,
         normalization=None,
         reg=0.01,
-        weight_scale=1e-2,
+        weight_scale=0.01,
     ):
 
         self.normalization = normalization
@@ -428,7 +479,9 @@ class MyMLPRegression(object):
         self,
         X,
         y,
-        learning_rate=1e-3,
+        mode='adam',
+        config=None,
+        # learning_rate=0.001,
         iterations=100,
         batch_size=200,
         verbose=False,
@@ -451,6 +504,14 @@ class MyMLPRegression(object):
 
         # sgd 优化
 
+        res_best={}
+        res_best['cost']=float("inf") 
+
+        cfg=[]
+        for i in range(1,self.layer_num+1):
+            # cfg_cur={} if config is None else config
+            cfg.append(copy.deepcopy(config))
+
         for it in range(iterations):
 
             train_indices=np.random.choice(range(data_num),batch_size,replace=True)
@@ -460,20 +521,57 @@ class MyMLPRegression(object):
             # print('X_batch.shape: ',X_batch.shape,' ','y_batch.shape: ',y_batch.shape)
 
 
+            
 
-     
-            cost,grads=self.cost_grad_MLP(X_batch,y_batch)
-
-            for i in range(1,self.layer_num+1):
-                # print(self.params['W'+str(i)].shape,'  ',grads['W'+str(i)].shape)
-                self.params['W'+str(i)]-=learning_rate*grads['W'+str(i)]
-                self.params['b'+str(i)]-=learning_rate*grads['b'+str(i)]
             
 
 
-            if verbose and it % 100 == 0:
-                print("iteration %d / %d: loss %f" % (it, iterations, cost))
+            
+            cost,grads=self.cost_grad_MLP(X_batch,y_batch)
+            if cost<res_best['cost']:
+                res_best['iter']=it
+                res_best['cost']=cost
+                for i in range(1,self.layer_num+1):
+                    res_best['W'+str(i)]=self.params['W'+str(i)]
+                    res_best['b'+str(i)]=self.params['b'+str(i)]
 
+            if mode=='adam':
+                for i in range(1,self.layer_num+1):
+                    # print(self.params['b'+str(i)].shape,' ',self.params['W'+str(i)].shape)
+                    # print(grads['b'+str(i)].shape,' ',grads['W'+str(i)].shape)
+                    # exit()
+                    Theta =np.vstack([ self.params['b'+str(i)],self.params['W'+str(i)]])
+                    dTheta =np.vstack([grads['b'+str(i)],grads['W'+str(i)]])
+
+                    # print(Theta.shape,' ',dTheta.shape)
+                    # print(cfg[i])
+                    Theta,cfg[i-1]=adam(Theta,dTheta,cfg[i-1])
+                    # print(cfg[i]['m'].shape)
+                        
+                    self.params['b'+str(i)] = Theta[0]
+                    self.params['W'+str(i)] = Theta[1:]
+            elif mode =='sgd':
+                for i in range(1,self.layer_num+1):
+                    # print(self.params['W'+str(i)].shape,'  ',grads['W'+str(i)].shape)
+                    self.params['W'+str(i)]-=config['learning_rate']*grads['W'+str(i)]
+                    self.params['b'+str(i)]-=config['learning_rate']*grads['b'+str(i)]
+     
+
+            # for i in range(1,self.layer_num+1):
+            #     # print(self.params['W'+str(i)].shape,'  ',grads['W'+str(i)].shape)
+            #     self.params['W'+str(i)]-=learning_rate*grads['W'+str(i)]
+            #     self.params['b'+str(i)]-=learning_rate*grads['b'+str(i)]
+            
+
+
+            if verbose and it % 500 == 0:
+                print("iteration %d / %d: cost %f" % (it, iterations, cost))
+        
+        # 最好的参数
+        for i in range(1,self.layer_num+1):
+            self.params['W'+str(i)]=res_best['W'+str(i)]
+            self.params['b'+str(i)]=res_best['b'+str(i)]  
+        print("best cost %f, in iteration %d" % (res_best['cost'],res_best['iter']))
 
 
     def predict(self, X_test):
