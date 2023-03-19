@@ -121,31 +121,34 @@ print ( y_val.isnull().values.any())
 y_ori=y_val
 
 '''mlp回归'''
-# dim_input=X_train.shape[1]
-# layer_dims=[50,100,150,100]
-# mlp_cfg={}
-# mlp_cfg['learning_rate']=0.002
-# # mlp_cfg["beta1"]=0.9 # 0.9
-# # mlp_cfg["beta2"]=0.999 # 0.99
-# # mlp_cfg["epsilon"]=1e-8 
-# my_mlpregressor=MyMLPRegression(
-#     layer_dims=layer_dims,
-#     dim_input=dim_input
-#     )
+dim_input=X_train.shape[1]
+layer_dims=[50,100,150,100]
+mlp_cfg={}
+mlp_cfg['learning_rate']=0.002
+# mlp_cfg["beta1"]=0.9 # 0.9
+# mlp_cfg["beta2"]=0.999 # 0.99
+# mlp_cfg["epsilon"]=1e-8 
+my_mlpregressor=MyMLPRegression(
+    layer_dims=layer_dims,
+    dim_input=dim_input,
+    weight_scale=0.01,
+    )
 
-# my_mlpregressor.train(
-#     X_train,
-#     y_train,
-#     config=mlp_cfg,
-#     iterations=5000,
-#     verbose=True
-#     )
+my_mlpregressor.train(
+    X_train,
+    y_train,
+    batch_size=128,
 
-# my_mlpr_pred=my_mlpregressor.predict(X_val)
-# print(my_mlpr_pred.shape)
-# print("my_mlpr R2=",r2_score(y_ori,my_mlpr_pred ))#模型评价, 决定系数
-# print(rmse_test(my_mlpr_pred.squeeze(),y_ori))
-# exit()
+    config=mlp_cfg,
+    iterations=5000,
+    verbose=True
+    )
+
+my_mlpr_pred=my_mlpregressor.predict(X_val)
+print(my_mlpr_pred.shape)
+print("my_mlpr R2=",r2_score(y_ori,my_mlpr_pred ))#模型评价, 决定系数
+print(rmse_test(my_mlpr_pred.squeeze(),y_ori))
+exit()
 '''lasso回归'''
 lasso_cfg={}
 lasso_cfg['learning_rate']=0.05
