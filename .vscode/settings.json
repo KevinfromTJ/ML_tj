@@ -1,5 +1,8 @@
 {
     "commentTranslate.source": "DarkCWK.youdao-youdao",
     // "python.terminal.executeInFileDir": true,
-    "terminal.integrated.env.windows": {"PYTHONPATH":"${workspaceFolder};${env:PYTHONPATH}"}
+    "terminal.integrated.env.windows": {"PYTHONPATH":"${workspaceFolder};${env:PYTHONPATH}"},
+    "python.analysis.extraPaths": [
+        "D:\\XXXDevelopment\\TJProjects\\ObstacleOnWater\\obs_dect_env\\Lib\\site-packages",
+    ]
 }
